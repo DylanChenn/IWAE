@@ -138,12 +138,4 @@ class IWAE(tf.keras.Model):
     @tf.function
     def eval_test(self, x_test, n_sample):
         return self.call(x_test, n_sample)
-
-    @tf.function
-    def NLL_test(self, x_test, n_sample):
-        iwae_elbo = 0
-        count = x_test.shape[0]
-        for i, x in enumerate(x_test):
-            iwae_elbo += -self.call(np.expand_dims(x, axis=0), n_sample)
-            print("Test Sample {:}/{:}".format(i+1, count))
-        return iwae_elbo/x_test.shape[0]
+    
