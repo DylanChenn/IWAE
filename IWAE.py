@@ -138,4 +138,3 @@ class IWAE(tf.keras.Model):
     @tf.function
     def eval_test(self, x_test, n_sample):
         return self.call(x_test, n_sample)
-    
