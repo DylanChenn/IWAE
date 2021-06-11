@@ -72,11 +72,13 @@ class IWAE(tf.keras.Model):
         self.encoder = Encoder(h_dim, z_dim)
         self.decoder = Decoder(h_dim)
 
-        self.lr = {}
-        self.epochs = 0
+    def get_lr(self):
+        lr = {}
+        epochs = 0
         for i in range(8):
-            self.lr[self.epochs] = 0.001 * 10 ** (-i / 7)
-            self.epochs += 3 ** i
+            lr[epochs] = 0.001 * 10 ** (-i / 7)
+            epochs += 3 ** i
+        return lr, epochs
 
     def call(self, x, n_sample):
         z, qzx = self.encoder(x, n_sample)  # z.shape = n_sample*batch*z_dim
@@ -94,6 +96,7 @@ class IWAE(tf.keras.Model):
         )
         return iwae_elbo
 
+    @tf.function
     def train_step(self, x, n_samples, optimizer):
         with tf.GradientTape() as tape:
             res = -self.call(x, n_samples)
@@ -103,38 +106,40 @@ class IWAE(tf.keras.Model):
 
         return res
 
-    def train(self, trainx, n_sample, x_test, batch_size, count):
-        optimizer = tf.keras.optimizers.Adam(self.lr[0], epsilon=1e-4)
-        start = time.time()
-        for epoch in range(self.epochs):
-            x = (tf.data.Dataset.from_tensor_slices(trainx).shuffle(trainx.shape[0]).batch(batch_size))
-            if epoch in self.lr:
-                print("Changing learning rate from {0} to {1}".format(
-                    optimizer.learning_rate.numpy(), self.lr[epoch])
-                )
-                optimizer.learning_rate.assign(self.lr[epoch])
-            for it, x_batch in enumerate(x):
-                s = time.time()
-                with tf.GradientTape() as tape:
-                    loss = -self.call(x_batch, n_sample)
-                    grads = tape.gradient(loss, self.trainable_weights)
-                    optimizer.apply_gradients(zip(grads, self.trainable_weights))
-                if it % 200 == 0:
-                    test_loss = -self.eval_test(x_test, n_sample)
-                    took = time.time() - start
-                    start = time.time()
-                    print(
-                        "Epoch {:}/{:}\t{:}/{:}\t\tloss:{:.4f}\ttestloss:{:.4f}\ttime:{:.2f}".format(
-                            epoch + 1, int(self.epochs), it, count, loss, test_loss, took)
-                    )
-            test_loss = -self.eval_test(x_test, n_sample)
-            print("Epoch {:}/{:}\ttestloss: {:.4f}".format(epoch + 1, self.epochs, test_loss))
-        nll = self.NLL_test(x_test, 5000)
-        print("NLLTest: {:.4f} with k={:}".format(nll, n_sample))
+    # def train(self, trainx, n_sample, x_test, batch_size, count):
+    #     optimizer = tf.keras.optimizers.Adam(self.lr[0], epsilon=1e-4)
+    #     start = time.time()
+    #     for epoch in range(self.epochs):
+    #         x = (tf.data.Dataset.from_tensor_slices(trainx).shuffle(trainx.shape[0]).batch(batch_size))
+    #         if epoch in self.lr:
+    #             print("Changing learning rate from {0} to {1}".format(
+    #                 optimizer.learning_rate.numpy(), self.lr[epoch])
+    #             )
+    #             optimizer.learning_rate.assign(self.lr[epoch])
+    #         for it, x_batch in enumerate(x):
+    #             s = time.time()
+    #             with tf.GradientTape() as tape:
+    #                 loss = -self.call(x_batch, n_sample)
+    #                 grads = tape.gradient(loss, self.trainable_weights)
+    #                 optimizer.apply_gradients(zip(grads, self.trainable_weights))
+    #             if it % 200 == 0:
+    #                 test_loss = -self.eval_test(x_test, n_sample)
+    #                 took = time.time() - start
+    #                 start = time.time()
+    #                 print(
+    #                     "Epoch {:}/{:}\t{:}/{:}\t\tloss:{:.4f}\ttestloss:{:.4f}\ttime:{:.2f}".format(
+    #                         epoch + 1, int(self.epochs), it, count, loss, test_loss, took)
+    #                 )
+    #         test_loss = -self.eval_test(x_test, n_sample)
+    #         print("Epoch {:}/{:}\ttestloss: {:.4f}".format(epoch + 1, self.epochs, test_loss))
+    #     nll = self.NLL_test(x_test, 5000)
+    #     print("NLLTest: {:.4f} with k={:}".format(nll, n_sample))
 
+    @tf.function
     def eval_test(self, x_test, n_sample):
         return self.call(x_test, n_sample)
 
+    @tf.function
     def NLL_test(self, x_test, n_sample):
         iwae_elbo = 0
         count = x_test.shape[0]
